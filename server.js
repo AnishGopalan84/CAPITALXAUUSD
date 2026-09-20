@@ -11,7 +11,14 @@ const today = () => new Date().toISOString().slice(0, 10);
 const log = m => { state.log.unshift(new Date().toISOString().slice(11, 19) + ' ' + m); state.log = state.log.slice(0, 30); };
 function rollDay() { if (state.day !== today()) state = { day: today(), qty: null, trades: 0, log: state.log, signal: null, lastCandle: '' }; }
 
+let loginBlockedUntil = 0, loginInFlight = null, scanning = false;
 async function login() {
+  if (Date.now() < loginBlockedUntil) throw new Error('Login cooling down, retry in ' + Math.ceil((loginBlockedUntil - Date.now()) / 1000) + 's');
+  if (loginInFlight) return loginInFlight;
+  loginInFlight = doLogin().catch(e => { loginBlockedUntil = Date.now() + (/429/.test(e.message) ? 10 : 3) * 60 * 1000; throw e; }).finally(() => { loginInFlight = null; });
+  return loginInFlight;
+}
+async function doLogin() {
   const r = await fetch(BASE + '/api/v1/session', { method: 'POST',
     headers: { 'X-CAP-API-KEY': CAPITAL_API_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({ identifier: CAPITAL_EMAIL, password: CAPITAL_PASSWORD, encryptedPassword: false }) });
@@ -31,6 +38,8 @@ const mid = p => (p.closePrice.bid + p.closePrice.ask) / 2;
 
 async function scan() {
   rollDay();
+  if (scanning) return;
+  scanning = true;
   try {
     const h = new Date().getUTCHours();
     if (h < SESSION_UTC[0] || h >= SESSION_UTC[1]) { state.signal = null; return; }
@@ -53,6 +62,7 @@ async function scan() {
     state.signal = dir ? { dir, price: cl, time: last.snapshotTimeUTC, expires: Date.now() + 10 * 60 * 1000 } : null;
     if (dir) log(`Signal ${dir} @ ${cl.toFixed(2)}`);
   } catch (e) { log('Scan error: ' + e.message); }
+  finally { scanning = false; }
 }
 setInterval(scan, 60 * 1000);
 
