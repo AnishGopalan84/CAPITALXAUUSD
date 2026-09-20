@@ -1,1 +1,36 @@
-
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Gold">
+<link rel="manifest" href="/manifest.json"><title>Gold Trader</title>
+<style>
+body{margin:0;background:#0b0f14;color:#e8edf2;font:16px -apple-system,sans-serif;padding:env(safe-area-inset-top) 16px 24px}
+h1{font-size:20px;color:#f5c542}.card{background:#151b23;border-radius:14px;padding:14px;margin:12px 0}
+input,button{font-size:18px;padding:12px;border-radius:10px;border:0;width:100%;box-sizing:border-box;margin-top:8px}
+button{background:#f5c542;color:#000;font-weight:700}button.g{background:#2a3441;color:#fff}
+.buy{background:#22c55e}.sell{background:#ef4444;color:#fff}.small{font-size:13px;color:#8b98a5;white-space:pre-line}
+</style></head><body>
+<h1>Gold Trader <span id="mode"></span></h1>
+<div id="login" class="card"><input id="pin" type="password" placeholder="PIN"><button onclick="savePin()">Unlock</button></div>
+<div id="app" style="display:none">
+ <div class="card"><b>Today's quantity</b> <span id="qtyv"></span>
+  <input id="qty" type="number" step="0.01" placeholder="e.g. 0.01"><button class="g" onclick="setQty()">Set (locks after 1st trade)</button></div>
+ <div class="card"><b>Trades today:</b> <span id="tr"></span> &nbsp; SL <span id="sl"></span> / TP <span id="tp"></span></div>
+ <div class="card" id="sig">No signal</div>
+ <button class="g" onclick="post('/api/scan')">Check now</button>
+ <div class="card small" id="log"></div>
+</div>
+<script>
+let pin=localStorage.pin||'';
+const H=()=>({'x-pin':pin,'Content-Type':'application/json'});
+function savePin(){pin=document.getElementById('pin').value;localStorage.pin=pin;load()}
+async function post(u,b){const r=await fetch(u,{method:'POST',headers:H(),body:JSON.stringify(b||{})});const j=await r.json();if(j.error)alert(j.error);load()}
+function setQty(){post('/api/qty',{qty:document.getElementById('qty').value})}
+async function load(){
+ const r=await fetch('/api/state',{headers:H()});if(!r.ok){return}
+ const s=await r.json();login.style.display='none';app.style.display='block';
+ mode.textContent='('+s.mode+')';qtyv.textContent=s.qty??'not set';tr.textContent=s.trades+'/'+s.MAX_TRADES;sl.textContent=s.SL;tp.textContent=s.TP;
+ log.textContent=s.log.join('\n');
+ sig.innerHTML=s.signal&&s.signal.expires>Date.now()?`<b>${s.signal.dir} signal @ ${s.signal.price.toFixed(2)}</b><button class="${s.signal.dir=='BUY'?'buy':'sell'}" onclick="if(confirm('Execute ${s.signal.dir} ${s.qty}?'))post('/api/execute')">Execute ${s.signal.dir} ${s.qty??''}</button>`:'No signal';
+}
+if(pin)load();setInterval(()=>pin&&load(),15000);
+</script></body></html>
