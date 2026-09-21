@@ -17,6 +17,8 @@ button{background:#f5c542;color:#000;font-weight:700}button.g{background:#2a3441
  <div class="card"><b>Trades today:</b> <span id="tr"></span> &nbsp; SL <span id="sl"></span> / TP <span id="tp"></span></div>
  <div class="card" id="sig">No signal</div>
  <button class="g" onclick="post('/api/scan')">Check now</button>
+ <div class="card"><b>Open trades</b> (manual + app)<div id="posBox" class="small">Loading...</div></div>
+ <div class="card"><b>Closed today</b><div id="doneBox" class="small">-</div></div>
  <div class="card small" id="log"></div>
 </div>
 <script>
@@ -30,6 +32,10 @@ async function load(){
  const s=await r.json();login.style.display='none';app.style.display='block';
  mode.textContent='('+s.mode+')';qtyv.textContent=s.qty??'not set';tr.textContent=s.trades+'/'+s.MAX_TRADES;sl.textContent=s.SL;tp.textContent=s.TP;
  log.textContent=s.log.join('\n');
+ const E=x=>String(x??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+ const f=(n,d=2)=>n==null||isNaN(n)?'-':Number(n).toFixed(d);
+ posBox.innerHTML=s.acctErr?'Could not load: '+E(s.acctErr):(s.positions&&s.positions.length?s.positions.map(p=>`<div style="margin:8px 0;color:#e8edf2"><b style="color:${p.dir=='BUY'?'#22c55e':'#ef4444'}">${p.dir}</b> ${E(p.name)} x${p.size}<br><span class="small">Entry ${f(p.open)} | SL ${f(p.stop)} | TP ${f(p.limit)}</span><br><b style="color:${p.pts>=0?'#22c55e':'#ef4444'}">${p.pts>=0?'+':''}${f(p.pts)} pts (${p.pts>=0?'+':''}${f(p.pnl)} ${E(p.cur)})</b></div>`).join(''):'No open trades');
+ doneBox.innerHTML=s.closedToday&&s.closedToday.length?s.closedToday.map(t=>`<div style="margin:6px 0;color:#e8edf2">${E(t.time)} ${E(t.name)} x${E(t.size)}<br><span class="small">${f(t.open)} -> ${f(t.close)}</span> <b>${E(t.pnl)}</b></div>`).join(''):'None yet';
  sig.innerHTML=s.signal&&s.signal.expires>Date.now()?`<b>${s.signal.dir} signal @ ${s.signal.price.toFixed(2)}</b><button class="${s.signal.dir=='BUY'?'buy':'sell'}" onclick="if(confirm('Execute ${s.signal.dir} ${s.qty}?'))post('/api/execute')">Execute ${s.signal.dir} ${s.qty??''}</button>`:'No signal';
 }
 if(pin)load();setInterval(()=>pin&&load(),15000);
