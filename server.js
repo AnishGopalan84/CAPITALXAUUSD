@@ -66,6 +66,29 @@ async function scan() {
 }
 setInterval(scan, 60 * 1000);
 
+// ---- Account view (shows manual + app trades) ----
+let acct = { t: 0, positions: [], closed: [], err: null };
+async function refreshAcct() {
+  if (Date.now() - acct.t < 10000) return;
+  acct.t = Date.now();
+  try {
+    const r = await api('GET', '/api/v1/positions');
+    acct.positions = (r.positions || []).map(x => {
+      const p = x.position, m = x.market, buy = p.direction === 'BUY';
+      const px = buy ? m.bid : m.offer;
+      const pts = buy ? px - p.level : p.level - px;
+      return { name: m.instrumentName || m.epic, epic: m.epic, dir: p.direction, size: p.size, open: p.level,
+        stop: p.stopLevel ?? null, limit: p.profitLevel ?? null, pts, pnl: pts * p.size, cur: p.currency || '', time: p.createdDateUTC || p.createdDate || '' };
+    });
+    acct.err = null;
+  } catch (e) { acct.err = e.message; }
+  try {
+    const d = today(), r = await api('GET', `/api/v1/history/transactions?type=TRADE&from=${d}T00:00:00&to=${d}T23:59:59`);
+    acct.closed = (r.transactions || []).map(t => ({ name: t.instrumentName, size: t.size, open: t.openLevel, close: t.closeLevel,
+      pnl: t.profitAndLoss, time: (t.dateUtc || t.date || '').slice(11, 19) }));
+  } catch (e) { /* history is optional */ }
+}
+
 async function execute() {
   rollDay();
   if (state.qty == null) throw new Error('Set today\'s quantity first');
@@ -85,7 +108,7 @@ http.createServer(async (req, res) => {
     if (req.url.startsWith('/api/')) {
       if (req.headers['x-pin'] !== APP_PIN) return send(res, 401, { error: 'Wrong PIN' });
       rollDay();
-      if (req.url === '/api/state') return send(res, 200, { ...state, mode: MODE, SL, TP, MAX_TRADES });
+      if (req.url === '/api/state') { await refreshAcct(); return send(res, 200, { ...state, mode: MODE, SL, TP, MAX_TRADES, positions: acct.positions, closedToday: acct.closed, acctErr: acct.err }); }
       let body = ''; for await (const ch of req) body += ch; body = body ? JSON.parse(body) : {};
       if (req.url === '/api/qty') {
         const q = Number(body.qty); if (!(q > 0)) return send(res, 400, { error: 'Bad qty' });
@@ -101,4 +124,3 @@ http.createServer(async (req, res) => {
     res.end(fs.readFileSync(path.join(__dirname, 'public', f)));
   } catch (e) { send(res, 500, { error: e.message }); }
 }).listen(PORT, () => console.log('Running on ' + PORT + ' mode=' + MODE));
-
