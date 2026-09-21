@@ -3,7 +3,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const { CAPITAL_API_KEY, CAPITAL_EMAIL, CAPITAL_PASSWORD, APP_PIN, MODE = 'demo', PORT = 3000 } = process.env;
 const BASE = MODE === 'live' ? 'https://api-capital.backend-capital.com' : 'https://demo-api-capital.backend-capital.com';
 const EPIC = 'GOLD', SL = 20, TP = 40, MAX_TRADES = 5, MAX_SPREAD = 1.5;
-const SESSION_UTC = [7, 20]; // London + New York hours (UTC)
+const SESSION_UTC = [13, 20]; // New York hours only (UTC) - best in backtest
 
 let sess = null;
 let state = { day: '', qty: null, trades: 0, log: [], signal: null, lastCandle: '' };
